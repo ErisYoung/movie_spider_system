@@ -1,7 +1,28 @@
-from cinema_spider.models import Movie
+import re
+import json
+import requests as rq
+
+
+def request_and_parse(url, params, headers):
+    res = rq.get(url=url, params=params, headers=headers)
+    text = parse_res_to_result(res)
+    return text
+
+
+def parse_res_to_result(res):
+    if res.status_code == 200:
+        return res.text
+    return None
+
+
+def extract_json(text):
+    pattern = r"= (.*?);var"
+    text_json = re.search(pattern, text, re.S).group(1)
+    return json.loads(text_json)
 
 
 def parse_to_movie(movie_json):
+    from cinema_spider.models.movie import Movie
     id = movie_json.get('id')
     img = movie_json.get('img')
     nm = movie_json.get('nm')

@@ -1,6 +1,8 @@
 import datetime
 import time
 
+MTIME_TIME_LENGTH = 16
+
 
 def get_current_timestamp():
     now = datetime.datetime.now()
@@ -22,10 +24,17 @@ def get_current_date():
     return date_str
 
 
+def get_current_date_str():
+    now = datetime.datetime.now()
+    time_tuple = now.timetuple()
+    format_string = f"{time_tuple.tm_year}{time_tuple.tm_mon}{time_tuple.tm_mday}{time_tuple.tm_hour}{time_tuple.tm_min}{time_tuple.tm_sec}"
+    format_string += (MTIME_TIME_LENGTH - len(format_string)) * "0"
+    return format_string
+
 if __name__ == '__main__':
     print(get_current_timestamp())
     print(get_current_date())
     print(get_date_from_timestamp(1559093867.101))
     print(get_date_from_timestamp(1559093867.092))
-
     print(get_timestamp_add(1559093867092))
+    print(get_current_date_str())
