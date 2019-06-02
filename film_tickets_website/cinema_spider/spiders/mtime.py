@@ -2,6 +2,7 @@ from urllib.parse import quote
 from cinema_spider.utils import get_current_date_str, request_and_parse, extract_json
 from cinema_spider.models import MovieMtime
 
+regex_pattern_api = r"= (.*?);var"
 movie_search_url = "http://search.mtime.com/search/?q="
 movie_search_API_url = "http://service.channel.mtime.com/Search.api"
 movie_detail_API_url = "http://service.library.mtime.com/Movie.api"
@@ -45,7 +46,7 @@ def get_search_movie(movie_name):
         "Ajax_CallBackArgument4": "1"
     }
     text = request_and_parse(url=movie_search_API_url, params=movie_search_params, headers=MTIME_HEADERS)
-    text_json = extract_json(text)
+    text_json = extract_json(text,regex_pattern_api)
     movies = parse_to_movies(text_json)
     return list(movies)
 

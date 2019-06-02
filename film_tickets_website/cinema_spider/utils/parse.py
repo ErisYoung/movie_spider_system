@@ -9,14 +9,19 @@ def request_and_parse(url, params, headers):
     return text
 
 
+def request_without_pa_and_parse(url, headers):
+    res = rq.get(url=url, headers=headers)
+    text = parse_res_to_result(res)
+    return text
+
+
 def parse_res_to_result(res):
     if res.status_code == 200:
         return res.text
     return None
 
 
-def extract_json(text):
-    pattern = r"= (.*?);var"
+def extract_json(text,pattern):
     text_json = re.search(pattern, text, re.S).group(1)
     return json.loads(text_json)
 
