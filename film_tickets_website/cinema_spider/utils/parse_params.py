@@ -31,6 +31,7 @@ def get_current_date_str():
     format_string += (MTIME_TIME_LENGTH - len(format_string)) * "0"
     return format_string
 
+
 if __name__ == '__main__':
     print(get_current_timestamp())
     print(get_current_date())

@@ -2,6 +2,8 @@ import re
 import json
 import requests as rq
 
+NOT_EXISTS_KEY = "None"
+
 
 def request_and_parse(url, params, headers):
     res = rq.get(url=url, params=params, headers=headers)
@@ -21,9 +23,21 @@ def parse_res_to_result(res):
     return None
 
 
-def extract_json(text,pattern):
+def extract_json(text, pattern):
     text_json = re.search(pattern, text, re.S).group(1)
     return json.loads(text_json)
+
+
+def parse_list_length(list_temp):
+    if len(list_temp) == 1:
+        return list_temp[0], 0
+    return list_temp
+
+
+def parse_array_first(list_temp):
+    if isinstance(list_temp, list) and list_temp:
+        return list_temp[0]
+    return NOT_EXISTS_KEY
 
 
 def parse_to_movie(movie_json):
