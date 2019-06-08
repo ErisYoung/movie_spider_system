@@ -1,5 +1,6 @@
 import json
 import math
+import re
 import time
 import asyncio
 import aiohttp
@@ -25,6 +26,17 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1",
     "X-Requested-With": "XMLHttpRequest"
 }
+HTML_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Connection": "keep-alive",
+    "Cookie": "__mta=208912045.1557017609572.1559908507372.1559909287195.31; _lxsdk_cuid=16a857b4247c8-003e73a55803da-58422116-144000-16a857b42481a; uuid_n_v=v1; iuuid=79F4B870761611E9A2B95115D7852D86390E1BA1522B4F3A9880417595ABFA4E; selectci=true; webp=true; ci=10%2C%E4%B8%8A%E6%B5%B7; __mta=208912045.1557017609572.1559898905065.1559898942892.27; from=canary; __mta=208912045.1557017609572.1559898942892.1559907946559.28; _lxsdk=79F4B870761611E9A2B95115D7852D86390E1BA1522B4F3A9880417595ABFA4E; _lxsdk_s=16b31affffd-34e-76-86b%7C%7C49",
+    "Host": "m.maoyan.com",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit/604.1.38 (KHTML, like Gecko) Version/11.0 Mobile/15A372 Safari/604.1"
+
+}
 
 cinema_list_base_url = "https://m.maoyan.com/ajax/cinemaList"
 cinema_of_movie_base_url = "https://m.maoyan.com/ajax/movie?forceUpdate="
@@ -32,6 +44,7 @@ city_area_info_base_url = "https://m.maoyan.com/ajax/filterCinemas"
 movies_now_showing_base_url = "https://m.maoyan.com/ajax/movieOnInfoList"
 movies_showing_more_coming_base_url = "https://m.maoyan.com/ajax/moreComingList"
 movie_detail_base_url = "https://m.maoyan.com/ajax/detailmovie"
+movie_detail_more_base_url = "http://m.maoyan.com/movie/{movie_id}?_v_=yes&channelId=4&$from=canary"
 cinema_detail_base_url = "http://m.maoyan.com/ajax/cinemaDetail"
 MAX_BATCH_SIZE = 12
 default_limit = 20
@@ -43,10 +56,11 @@ async def post(url, data):
         return await res.json()
 
 
-def get_cinema_list(city_id, **kwargs):
+def get_cinema_list(city_id, offset=0, **kwargs):
     """get a certain city,certain district and certain sub_area's cinemas
 
     :param city_id: city_id
+    :param offset: offset,default 20
     :param district_id: if get all district,then define it "-1"
     :param sub_area_id: if get all sub_area,then define it "-1"
     :param subway_id: if get all subway,then define it "-1"
@@ -55,7 +69,7 @@ def get_cinema_list(city_id, **kwargs):
     """
     cinema_api_params = {
         "day": str(get_current_date()),
-        "offset": "0",
+        "offset": str(offset),
         "limit": "20",
         "districtId": str(kwargs.get('district_id', "-1")),
         "lineId": str(kwargs.get("subway_id", "-1")),
@@ -107,7 +121,7 @@ async def get_more_cinema_of_movie_list(movie_id, city_id, offset=0, date_str=ge
 
 def get_cinema_of_movie_list(movie_id, city_id, offset=0, date_str=get_current_date(), **kwargs):
     """
-    get specified movie of cinemas list
+    get specified movie of cinemas list,single page,default 20 item
     :return:
     """
     current_timestamp = str(get_current_timestamp())
@@ -178,6 +192,19 @@ def get_movies_now_showing():
     return parse_res_to_result(res)
 
 
+def get_movies_showing_offset(offset):
+    offset = int(offset)
+    base_movies_json = get_movies_now_showing()
+    if offset == MAX_BATCH_SIZE:
+        return base_movies_json
+    batch = math.ceil(offset / MAX_BATCH_SIZE)
+    total = base_movies_json.get("total")
+    total_movies = base_movies_json.get("movieIds", [])
+    current_movie_ids = total_movies[(batch - 1) * MAX_BATCH_SIZE:batch * MAX_BATCH_SIZE]
+    result = get_movies_coming(current_movie_ids)
+    return dict(movies=result.get('coming'), total=total)
+
+
 async def get(url, params):
     async with aiohttp.ClientSession() as session:
         # 注意，使用aiohttp需要自己parse 多个参数，不会像request自动数组拼接
@@ -194,7 +221,24 @@ async def get_movies_more_coming(movies_ids_str):
     return result
 
 
+def get_movies_coming(movies_ids_str):
+    movies_now_params = {
+        "token": "",
+        "movieIds": movies_ids_str,
+    }
+    result = rq.get(url=movies_showing_more_coming_base_url, params=movies_now_params, headers=HEADERS)
+    return parse_res_to_result(result)
+
+
+def get_movies_not_showing():
+    pass
+
+
 def get_all_showing_movies():
+    """
+    获取当前所有上映电影的json
+    :return:
+    """
     base_movies_json = get_movies_now_showing()
     total = base_movies_json.get("total")
     total_movies = base_movies_json.get("movieIds", [])
@@ -207,7 +251,7 @@ def get_all_showing_movies():
     loop.run_until_complete(asyncio.wait(tasks))
     for task in tasks:
         movie_list.extend(task.result().get("coming", []))
-    return movie_list
+    return dict(movies=movie_list)
 
 
 def movies_params_with_id(movie_id_list):
@@ -227,15 +271,78 @@ def get_all_cities():
     return json.loads(city_list)
 
 
+def parse_photo_url_func(item):
+    """
+    stand by parse_photo_url func's map func param
+    :param item:
+    :return:
+    """
+    if isinstance(item, str):
+        return item.replace("/w.h", "")
+    elif isinstance(item, dict):
+        new_avatar = parse_photo_url_func(item.get('avatar'))
+        item.update({"avatar": new_avatar})
+        return item
+
+
+def parse_photo_url_real(photos_list):
+    """
+    get real photo's url
+    :param photos_list:
+    :return:
+    """
+    new_photos = list(map(parse_photo_url_func, photos_list))
+    return new_photos
+
+
+def get_size_photo(photo_url, width, height):
+    """
+    get specified size of photo
+    :param photo_url:
+    :param width:
+    :param height:
+    :return:
+    """
+    photo_size_inter = "@{width}w_{height}h.webp"
+    photo_url += photo_size_inter.format(width=width, height=height)
+    return photo_url
+
+
+def get_movie_stars(movie_id):
+    url = movie_detail_more_base_url.format(movie_id=movie_id)
+    res = rq.get(url=url, headers=HTML_HEADERS)
+    pattern = r'AppData = (.*?);</script>'
+    result_json = re.search(pattern, res.text, re.S).group(1)
+    stars_list = json.loads(result_json).get('celebrities')
+    new_stars_list = parse_photo_url_real(stars_list)
+    return new_stars_list
+
+
 def get_movie_detail(movie_id):
+    """
+    get movie detail and merge movie's stars'detail to it.
+    :param movie_id:
+    :return:
+    """
     movie_params = {
         'movieId': str(movie_id)
     }
     res = rq.get(url=movie_detail_base_url, params=movie_params, headers=HEADERS)
-    return parse_res_to_result(res)
+    temp_json = parse_res_to_result(res)
+    stars_list = get_movie_stars(movie_id)
+    photos = temp_json.get('detailMovie').get('photos', [])
+    new_photos = parse_photo_url_real(photos)
+    temp_json.get('detailMovie').update({"photos": new_photos, "stars_detail": stars_list})
+    return temp_json
 
 
 def get_cinema_detail(movie_id, cinema_id):
+    """
+    get cinema detail
+    :param movie_id: not usage
+    :param cinema_id:
+    :return:
+    """
     cinema_params = {
         'cinemaId': str(cinema_id),
         'movieId': str(movie_id)
@@ -271,13 +378,33 @@ def run():
     store_data_to_persistence(cities_data)
 
 
+def get_json_file():
+    a = get_movie_detail("1207959")
+    store_dict_to_json(a, "movie_detail")
+
+    b = get_city_filter_cinema_info("50")
+    store_dict_to_json(b, "city_cinema_info")
+
+    c = get_cinema_list("50")
+    store_dict_to_json(c, "city_cinema_list")
+
+    d = get_all_cinemas_of_movie("1207959", "57")
+    store_dict_to_json(d, "cinemas_of_movie")
+
+
 if __name__ == '__main__':
     # run()
-    # get_all_showing_movies()
+    # print(get_all_cities())
     # get_all_showing_movies()
 
+    # print(get_cinema_detail("1207959", "922"))
     # print(get_cinema_list("40"))
     # print(get_cinema_of_movie_list("1207959", "57"))
-    # get_all_cinemas_of_movie("1207959", "57")
-    # print(get_cinema_detail("1207959", "922"))
-    pass
+    # print(get_cinema_of_movie_list("1207959", "57"))
+    # print(get_all_cinemas_of_movie("1207959", "57"))
+    # get_json_file()
+
+    # print(get_movie_detail("1207959"))
+
+    # print(get_cinema_of_movie_list("1207959", "57",offset=20))
+    print(get_movies_showing_offset("24"))

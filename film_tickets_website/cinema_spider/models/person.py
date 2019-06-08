@@ -98,10 +98,16 @@ class Director(Person):
         items_list = []
         temp_dict=temp_dict_item = {}
         for items in movie_items:
-            temp_dict['year']=item.xpath('./i/text()')[0]
+            temp_dict['year']=items.xpath('./i/text()')[0]
             for item in items.xpath("./div"):
-                temp_dict_item['cover_img']
-                temp_dict_item['']
+                pass
+                # temp_dict_item['cover_img']
+                # temp_dict_item['movie_name']
+                # temp_dict_item['movie_url']
+                # temp_dict_item['score']
+                # temp_dict_item['role']
+                # temp_dict_item['role']
+
 
             temp_dict['movies']=temp_dict_item
 
@@ -116,19 +122,19 @@ class Director(Person):
         born_date, country = html.xpath('//dl[@class="per_base_born __r_c_"]/dd/text()')
         introduction = html.xpath('//div[@class="per_rmod per_info __r_c_"]/p[1]/text()')[0]
 
-        json_data = {
-                        "name_cn": self.name,
-                        "name_en": name_en,
-                        "head_photo_url": head_photo,
-                        "person_job": person_job,
-                        "born_date": born_date.strip(),
-                        "country": country.strip(),
-                        "introduction": introduction,
-                        "award": self.get_award_data(),
-                        "works":,
-                    "pictures": self.get_photo_data()
-        }
-        return json_data
+        # json_data = {
+        #                 "name_cn": self.name,
+        #                 "name_en": name_en,
+        #                 "head_photo_url": head_photo,
+        #                 "person_job": person_job,
+        #                 "born_date": born_date.strip(),
+        #                 "country": country.strip(),
+        #                 "introduction": introduction,
+        #                 "award": self.get_award_data(),
+        #                 "works":,
+        #             "pictures": self.get_photo_data()
+        # }
+        # return json_data
 
 
 if __name__ == '__main__':
