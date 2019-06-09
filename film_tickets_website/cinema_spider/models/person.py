@@ -1,5 +1,7 @@
-from lxml import etree
 import threading
+import copy
+from lxml import etree
+from selenium import webdriver
 from cinema_spider.utils import request_and_parse, parse_list_length, parse_array_first, extract_json
 
 AWARD_SUFFIX = "awards.html"
@@ -30,6 +32,12 @@ MTIME_PEOPLE_HEADERS = {
 }
 
 
+def write_html_to_base(text):
+    file_name = "temp.html"
+    with open(file_name, 'w', encoding="utf8") as f:
+        f.write(text)
+
+
 class Person:
     def __init__(self, **kwargs):
         self.name = kwargs.get('nameCn')
@@ -52,6 +60,7 @@ class Director(Person):
     @staticmethod
     def request_with_url(url):
         text = request_and_parse(url=url, params=None, headers=DIRECTOR_HEADERS)
+        write_html_to_base(text)
         html = etree.HTML(text)
         return html
 
@@ -92,26 +101,56 @@ class Director(Person):
         result_json = extract_json(text, regex_pattern_director_picture)
         return result_json
 
-    def get_work_data(self):
-        html = self.request_with_url(self.person_url +WORKS_SUFFIX)
-        movie_items=html.xpath('//div[@class="per_rele_list"]//dd')
-        items_list = []
-        temp_dict=temp_dict_item = {}
+    @staticmethod
+    def parse_person_dict():
+        pass
+
+    def selenium_test(self):
+        url = self.person_url + WORKS_SUFFIX
+        driver = webdriver.Chrome()
+        driver.maximize_window()
+        driver.get(url)
+        html=etree.HTML(driver.page_source)
+        movie_items = html.xpath('//div[@class="per_rele_list"]//dd')
         for items in movie_items:
-            temp_dict['year']=items.xpath('./i/text()')[0]
+            print("year",items.xpath('./i/text()')[0])
             for item in items.xpath("./div"):
-                pass
-                # temp_dict_item['cover_img']
-                # temp_dict_item['movie_name']
-                # temp_dict_item['movie_url']
-                # temp_dict_item['score']
-                # temp_dict_item['role']
-                # temp_dict_item['role']
+                print(item.xpath('.//p[@class="c_666 mt9"]/text()')[0])
+        # movie_items = driver.find_elements_by_xpath('//div[@class="per_rele_list"]//dd')
+        # for items in movie_items:
+        #     print(items.find_element_by_xpath("./i").text)
 
+    def get_work_data(self):
+        html = self.request_with_url(self.person_url + WORKS_SUFFIX)
+        movie_items = html.xpath('//div[@class="per_rele_list"]//dd')
+        items_list, dir_list = [], []
+        temp_dict, temp_dict_item, sub_temp_dict_item = {}, {}, {}
 
-            temp_dict['movies']=temp_dict_item
-
-
+        for items in movie_items:
+            temp_dict['year'] = items.xpath('./i/text()')[0]
+            for item in items.xpath("./div"):
+                temp_dict_item['cover_img'] = item.xpath('.//img/@src')[0]
+                temp_dict_item['movie_name'] = item.xpath('.//h3/a/text()')[0]
+                temp_dict_item['movie_url'] = item.xpath('.//h3/a/@href')[0]
+                temp_dict_item['score'] = item.xpath('.//span[@class="db_point"]/text()')[0]
+                temp_dict_item['type'] = item.xpath('//span[@class="type"]/text()')[0]
+                temp_dict_item['role'] = item.xpath('.//p[@class="c_666 mt9"]/text()')[0]
+                directors = item.xpath('.//p[@class="per_actortype"][1]/a')
+                for director in directors:
+                    sub_temp_dict_item['name'] = director.xpath('./text()')[0]
+                    sub_temp_dict_item['dir_url'] = director.xpath('./@href')[0]
+                    dir_list.append(sub_temp_dict_item.copy())
+                temp_dict_item['directors'] = dir_list
+                actors = item.xpath('.//p[@class="per_actortype"][2]/a')
+                actor_list = copy.deepcopy(dir_list)
+                for actor in actors:
+                    sub_temp_dict_item['name'] = actor.xpath('./text()')[0]
+                    sub_temp_dict_item['actor_url'] = actor.xpath('./@href')[0]
+                    actor_list.append(sub_temp_dict_item.copy())
+                temp_dict_item['actors'] = actor_list
+            items_list.append(temp_dict_item.copy())
+        temp_dict['movies'] = items_list
+        return temp_dict
 
     def get_detail_data(self):
         html = self.request_with_url(self.person_url)
@@ -122,21 +161,21 @@ class Director(Person):
         born_date, country = html.xpath('//dl[@class="per_base_born __r_c_"]/dd/text()')
         introduction = html.xpath('//div[@class="per_rmod per_info __r_c_"]/p[1]/text()')[0]
 
-        # json_data = {
-        #                 "name_cn": self.name,
-        #                 "name_en": name_en,
-        #                 "head_photo_url": head_photo,
-        #                 "person_job": person_job,
-        #                 "born_date": born_date.strip(),
-        #                 "country": country.strip(),
-        #                 "introduction": introduction,
-        #                 "award": self.get_award_data(),
-        #                 "works":,
-        #             "pictures": self.get_photo_data()
-        # }
-        # return json_data
+        json_data = {
+            "name_cn": self.name,
+            "name_en": name_en,
+            "head_photo_url": head_photo,
+            "person_job": person_job,
+            "born_date": born_date.strip(),
+            "country": country.strip(),
+            "introduction": introduction,
+            "award": self.get_award_data(),
+            "works": self.get_work_data(),
+            "pictures": self.get_photo_data()
+        }
+        return json_data
 
 
 if __name__ == '__main__':
     d = Director(nameCn="安东尼·罗素", personUrl="http://people.mtime.com/892845/", id="892845")
-    print(d.get_photo_data())
+    print(d.selenium_test())

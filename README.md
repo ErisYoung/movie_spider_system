@@ -15,12 +15,12 @@ python run.py
 
 ## Usage
 
-##### get all cities' id:
+#### get all cities' id:
 
     example:
     http://127.0.0.1:5000/allCities/
 
-##### get cinema list:
+#### get cinema list:
 
     example:
     http://127.0.0.1:5000/cinemaList?day=2019-06-08&offset=20&districtId=-1&lineId=-1&areaId=-1&stationId=-1&cityId=50
@@ -33,7 +33,7 @@ python run.py
         lineId: subway code: 55 （一号线）
         stationId: subway station code: 1224 (凤起路)
         
-##### get cinemas' list of specified movie
+#### get cinemas' list of specified movie
 
     example:
     http://127.0.0.1:5000/movie?movieId=344328&day=2019-06-08&offset=20&districtId=-1&lineId=-1&areaId=-1&stationId=-1&cityId=50
@@ -47,9 +47,25 @@ python run.py
         lineId: subway code: 55 （一号线）
         stationId: subway station code: 1224 (凤起路)
         
-##### get showing movie list
+#### get showing movie list
 
     example:
     http://127.0.0.1:5000/movieOnInfoList?offset=12
     params:
          offset: offset, default 12 items, return 0-11
+         
+       
+#### get showing movies list
+    
+    example:
+    http://127.0.0.1:5000/moveComingList?offset=10
+    params:
+        offset: offset,default 10 items,return 0-9
+    
+
+#### get cinema's detail
+
+    example:
+    http://127.0.0.1:5000/cinemaDetail?cinemaId=25989
+    params:
+        cinemaId: cinema id
