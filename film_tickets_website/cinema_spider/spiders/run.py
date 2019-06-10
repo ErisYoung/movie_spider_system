@@ -160,5 +160,28 @@ def show_movie_detail():
     return jsonify(result_json)
 
 
+@app.route('/photoSize')
+def photo_specified_size():
+    """get new photo size
+
+    example:
+    http://127.0.0.1:5000/photoSize?photoUrl=http://p0.meituan.net/movie/67044d5479f075a18adba35571cadc4f978021.jpg&width=200&height=200
+    params:
+        photoUrl: origin url
+        width: need photo width, can use width only to control new size due to proportion of lock
+        height:
+
+    :return:
+    """
+    rq_args = request.args
+    params = {
+        'photo_url': rq_args.get('photoUrl'),
+        'width': rq_args.get('width'),
+        'height': rq_args.get('height')
+    }
+    result_json = get_size_photo(**params)
+    return jsonify(result_json)
+
+
 if __name__ == '__main__':
     app.run(debug=True)

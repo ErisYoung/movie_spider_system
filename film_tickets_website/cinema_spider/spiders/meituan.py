@@ -212,10 +212,12 @@ def get_movies_showing_offset(offset):
     """
     offset = int(offset)
     base_movies_json = get_movies_now_showing()
-    if offset == MAX_BATCH_SIZE:
-        return base_movies_json
-    batch = math.ceil(offset / MAX_BATCH_SIZE)
     total = base_movies_json.get("total")
+    if offset == MAX_BATCH_SIZE:
+        movies = base_movies_json.get('movieList')
+        new_movies = parse_img_to_real_url(movies)
+        return dict(movies=new_movies, total=total)
+    batch = math.ceil(offset / MAX_BATCH_SIZE)
     total_movies = base_movies_json.get("movieIds", [])
     current_movie_ids = total_movies[(batch - 1) * MAX_BATCH_SIZE:batch * MAX_BATCH_SIZE]
     result = get_movies_coming(current_movie_ids)
@@ -275,11 +277,13 @@ def get_movies_not_showing_offset(offset, city_id=50):
     """
     offset = int(offset)
     base_movies_json = get_movies_not_showing(city_id)
-    if offset == MAX_NOT_SHOWING_MOVIE_PAGE_SIZE:
-        return base_movies_json
-    batch = math.ceil(offset / MAX_BATCH_SIZE)
     total_movies = base_movies_json.get("movieIds", [])
     total = len(total_movies)
+    if offset == MAX_NOT_SHOWING_MOVIE_PAGE_SIZE:
+        movies = base_movies_json.get('coming')
+        new_movies = parse_img_to_real_url(movies)
+        return dict(movies=new_movies, total=total)
+    batch = math.ceil(offset / MAX_BATCH_SIZE)
     current_movie_ids = total_movies[
                         (batch - 1) * MAX_NOT_SHOWING_MOVIE_PAGE_SIZE:batch * MAX_NOT_SHOWING_MOVIE_PAGE_SIZE]
     result = get_more_movies_not_showing(current_movie_ids, city_id)
@@ -370,7 +374,7 @@ def get_size_photo(photo_url, width, height):
     """
     photo_size_inter = "@{width}w_{height}h.webp"
     photo_url += photo_size_inter.format(width=width, height=height)
-    return photo_url
+    return dict(url=photo_url, status="ok")
 
 
 def get_movie_stars(movie_id):

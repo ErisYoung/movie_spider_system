@@ -69,3 +69,13 @@ python run.py
     http://127.0.0.1:5000/cinemaDetail?cinemaId=25989
     params:
         cinemaId: cinema id
+        
+
+#### get new photo size
+
+    example:
+    http://127.0.0.1:5000/photoSize?photoUrl=http://p0.meituan.net/movie/67044d5479f075a18adba35571cadc4f978021.jpg&width=200&height=200
+    params:
+        photoUrl: origin url
+        width: need photo width, can use width only to control new size due to proportion of lock
+        height:        
