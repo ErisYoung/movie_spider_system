@@ -46,7 +46,7 @@ def get_search_movie(movie_name):
         "Ajax_CallBackArgument4": "1"
     }
     text = request_and_parse(url=movie_search_API_url, params=movie_search_params, headers=MTIME_HEADERS)
-    text_json = extract_json(text,regex_pattern_api)
+    text_json = extract_json(text, regex_pattern_api)
     movies = parse_to_movies(text_json)
     return list(movies)
 

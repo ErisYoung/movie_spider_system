@@ -1,13 +1,15 @@
-import threading
 import copy
 from lxml import etree
 from selenium import webdriver
-from cinema_spider.utils import request_and_parse, parse_list_length, parse_array_first, extract_json
+from selenium.webdriver.chrome.options import Options
+from cinema_spider.utils import request_and_parse, parse_list_length, parse_array_first, extract_json, \
+    write_html_to_base
 
 AWARD_SUFFIX = "awards.html"
 PHOTO_SUFFIX = "/photo_gallery/"
 WORKS_SUFFIX = "/filmographies/"
 NOT_EXISTS_KEY = "None"
+PERSON_TYPE_LOCATION_MAPPING = {'actor': 2, 'director': 1}
 regex_pattern_director_picture = r'imageList = (.*?)var'
 DIRECTOR_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
@@ -32,30 +34,11 @@ MTIME_PEOPLE_HEADERS = {
 }
 
 
-def write_html_to_base(text):
-    file_name = "temp.html"
-    with open(file_name, 'w', encoding="utf8") as f:
-        f.write(text)
-
-
 class Person:
     def __init__(self, **kwargs):
         self.name = kwargs.get('nameCn')
         self.person_url = kwargs.get('personUrl')
         self.belong_movie_id = kwargs.get('id')
-
-
-class Actor(Person):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.img = kwargs.get('img')
-        self.name_en = kwargs.get('name_en')
-        self.play_role = kwargs.get('play_role')
-
-
-class Director(Person):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
     @staticmethod
     def request_with_url(url):
@@ -66,6 +49,11 @@ class Director(Person):
 
     @staticmethod
     def get_award_detail(items):
+        """
+        parse person's award detail
+        :param items:need parsed items
+        :return:
+        """
         if not items:
             return NOT_EXISTS_KEY
         items_list = []
@@ -79,6 +67,10 @@ class Director(Person):
         return items_list
 
     def get_award_data(self):
+        """
+        get person's award information
+        :return:
+        """
         html = self.request_with_url(self.person_url + AWARD_SUFFIX)
         winning_number, nomination_number = html.xpath('//h3[@class="per_awardstit"]/strong/text()')
 
@@ -96,63 +88,70 @@ class Director(Person):
         return dict(total_wn=winning_number, total_nn=nomination_number, awards=items_list)
 
     def get_photo_data(self):
+        """
+        get person's photo information
+        :return:
+        """
         url = self.person_url + PHOTO_SUFFIX
         text = request_and_parse(url=url, params=None, headers=MTIME_PEOPLE_HEADERS)
         result_json = extract_json(text, regex_pattern_director_picture)
         return result_json
 
     @staticmethod
-    def parse_person_dict():
-        pass
-
-    def selenium_test(self):
-        url = self.person_url + WORKS_SUFFIX
-        driver = webdriver.Chrome()
-        driver.maximize_window()
-        driver.get(url)
-        html=etree.HTML(driver.page_source)
-        movie_items = html.xpath('//div[@class="per_rele_list"]//dd')
-        for items in movie_items:
-            print("year",items.xpath('./i/text()')[0])
-            for item in items.xpath("./div"):
-                print(item.xpath('.//p[@class="c_666 mt9"]/text()')[0])
-        # movie_items = driver.find_elements_by_xpath('//div[@class="per_rele_list"]//dd')
-        # for items in movie_items:
-        #     print(items.find_element_by_xpath("./i").text)
+    def parse_person_info(item, dir_list, person_type):
+        """
+        parse person's detail information
+        :param item:
+        :param dir_list:
+        :param person_type:
+        :return:
+        """
+        temp_dict = {}
+        directors = item.xpath(f'.//p[@class="per_actortype"][{PERSON_TYPE_LOCATION_MAPPING[person_type]}]/a')
+        if not directors:
+            return NOT_EXISTS_KEY
+        for director in directors:
+            temp_dict['name'] = director.xpath('./text()')[0]
+            temp_dict['url'] = director.xpath('./@href')[0]
+            dir_list.append(temp_dict.copy())
+        return dir_list
 
     def get_work_data(self):
-        html = self.request_with_url(self.person_url + WORKS_SUFFIX)
-        movie_items = html.xpath('//div[@class="per_rele_list"]//dd')
+        """
+        get person’s work information
+        :return:
+        """
+        url = self.person_url + WORKS_SUFFIX
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--disable-gpu')
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.maximize_window()
+        driver.get(url)
+        html = etree.HTML(driver.page_source)
         items_list, dir_list = [], []
-        temp_dict, temp_dict_item, sub_temp_dict_item = {}, {}, {}
-
+        temp_dict, temp_dict_item = {}, {}
+        movie_items = html.xpath('//div[@class="per_rele_list"]//dd')
         for items in movie_items:
             temp_dict['year'] = items.xpath('./i/text()')[0]
             for item in items.xpath("./div"):
                 temp_dict_item['cover_img'] = item.xpath('.//img/@src')[0]
                 temp_dict_item['movie_name'] = item.xpath('.//h3/a/text()')[0]
                 temp_dict_item['movie_url'] = item.xpath('.//h3/a/@href')[0]
-                temp_dict_item['score'] = item.xpath('.//span[@class="db_point"]/text()')[0]
+                temp_dict_item['score'] = parse_array_first(item.xpath('.//span[@class="db_point"]/text()'))
                 temp_dict_item['type'] = item.xpath('//span[@class="type"]/text()')[0]
                 temp_dict_item['role'] = item.xpath('.//p[@class="c_666 mt9"]/text()')[0]
-                directors = item.xpath('.//p[@class="per_actortype"][1]/a')
-                for director in directors:
-                    sub_temp_dict_item['name'] = director.xpath('./text()')[0]
-                    sub_temp_dict_item['dir_url'] = director.xpath('./@href')[0]
-                    dir_list.append(sub_temp_dict_item.copy())
-                temp_dict_item['directors'] = dir_list
-                actors = item.xpath('.//p[@class="per_actortype"][2]/a')
-                actor_list = copy.deepcopy(dir_list)
-                for actor in actors:
-                    sub_temp_dict_item['name'] = actor.xpath('./text()')[0]
-                    sub_temp_dict_item['actor_url'] = actor.xpath('./@href')[0]
-                    actor_list.append(sub_temp_dict_item.copy())
-                temp_dict_item['actors'] = actor_list
+                temp_dict_item['directors'] = self.parse_person_info(item, dir_list.copy(), 'director')
+                temp_dict_item['actors'] = self.parse_person_info(item, dir_list.copy(), 'actor')
             items_list.append(temp_dict_item.copy())
         temp_dict['movies'] = items_list
         return temp_dict
 
     def get_detail_data(self):
+        """
+        get person's detail information of all
+        :return:
+        """
         html = self.request_with_url(self.person_url)
         # html = self.request_with_url("http://people.mtime.com/903229/photo_gallery/")
         name_en = html.xpath('//p[@class="enname"]/text()')[0]
@@ -176,6 +175,19 @@ class Director(Person):
         return json_data
 
 
+class Actor(Person):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.img = kwargs.get('img')
+        self.name_en = kwargs.get('name_en')
+        self.play_role = kwargs.get('play_role')
+
+
+class Director(Person):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
 if __name__ == '__main__':
     d = Director(nameCn="安东尼·罗素", personUrl="http://people.mtime.com/892845/", id="892845")
-    print(d.selenium_test())
+    print(d.get_detail_data())
